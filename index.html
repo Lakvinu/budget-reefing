@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Reefing Tracker</title>
+<style>
+  :root {
+    --teal: #0891b2;
+    --teal-dark: #0e7490;
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  
+  /* LAYOUT */
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 50; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .logo { width: 32px; height: 32px; background: var(--teal); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 16px; }
+  .brand-name { font-size: 15px; font-weight: 600; }
+  .brand-abn { font-size: 11px; color: var(--muted); }
+  .nav { display: flex; gap: 2px; }
+  .nav-btn { padding: 6px 16px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 500; transition: all .15s; }
+  .nav-btn:hover { background: var(--bg); color: var(--text); }
+  .nav-btn.active { background: #e0f2fe; color: var(--teal); }
+  .main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  
+  /* METRICS */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+  .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 6px; }
+  .metric-value { font-size: 22px; font-weight: 700; }
+  .metric-value.teal { color: var(--teal); }
+  .metric-value.amber { color: #b45309; }
+  .metric-value.green { color: #15803d; }
+
+  /* PANELS */
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .panel-title { font-size: 16px; font-weight: 600; }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .btn:hover { background: var(--bg); }
+  .btn.primary { background: var(--teal); color: #fff; border-color: var(--teal); }
+  .btn.primary:hover { background: var(--teal-dark); }
+  .btn.danger { color: var(--danger); border-color: #fecaca; }
+  .btn.danger:hover { background: #fef2f2; }
+  .btn.sm { padding: 4px 10px; font-size: 12px; }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--bg); }
+
+  /* FILTERS */
+  .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters input, .filters select { padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: var(--surface); color: var(--text); outline: none; }
+  .filters input:focus, .filters select:focus { border-color: var(--teal); }
+  .filters input { flex: 1; min-width: 150px; }
+
+  /* TABLE */
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 600px; }
+  thead { background: #f8fafc; }
+  th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f8fafc; }
+  tfoot td { background: #f8fafc; font-weight: 600; border-top: 1px solid var(--border); }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.in-stock { background: #dcfce7; color: #15803d; }
+  .badge.low { background: #fef9c3; color: #92400e; }
+  .badge.out { background: #fee2e2; color: #b91c1c; }
+  .badge.cat { background: #f1f5f9; color: #475569; }
+  .badge.fifo { background: #e0f2fe; color: #0369a1; font-size: 10px; }
+
+  /* EXPANDABLE ROWS */
+  .expand-row { background: #f8fafc; }
+  .expand-row td { padding: 0; }
+  .expand-content { padding: 12px 16px 16px 48px; }
+  .batch-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .batch-table th { padding: 6px 12px; font-size: 10px; background: #f1f5f9; }
+  .batch-table td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+  .batch-table tr:last-child td { border-bottom: none; }
+  .batch-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .batch-summary { font-size: 12px; color: var(--muted); display: flex; gap: 16px; }
+  .batch-summary span { display: flex; align-items: center; gap: 4px; }
+  .depleted { opacity: .45; text-decoration: line-through; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 12px; width: 480px; max-width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,.15); }
+  .modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 16px; font-weight: 600; }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 0 24px 20px; display: flex; justify-content: flex-end; gap: 8px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+  .form-row input, .form-row select, .form-row textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); background: var(--surface); outline: none; font-family: inherit; }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(8,145,178,.1); }
+  .form-row textarea { resize: vertical; min-height: 70px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; color: #fff; padding: 12px 18px; border-radius: 10px; font-size: 13px; z-index: 300; opacity: 0; transform: translateY(8px); transition: all .25s; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: #b91c1c; }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 48px 24px; color: var(--muted); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 48px; color: var(--muted); }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--teal); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .actions { display: flex; gap: 4px; }
+  .trunc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nowrap { white-space: nowrap; }
+  .text-right { text-align: right; }
+  .text-muted { color: var(--muted); font-size: 12px; }
+  .expand-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 16px; padding: 2px 6px; border-radius: 4px; transition: all .15s; }
+  .expand-btn:hover { background: var(--border); color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="logo">🐠</div>
+    <div>
+      <div class="brand-name">Budget Reefing</div>
+      <div class="brand-abn">ABN 60 834 296 941</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="switchTab('inventory', this)">📦 Inventory</button>
+    <button class="nav-btn" onclick="switchTab('expenses', this)">🧾 Expenses</button>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Inventory value (cost)</div><div class="metric-value teal" id="mInvVal">—</div></div>
+    <div class="metric"><div class="metric-label">Total SKUs</div><div class="metric-value" id="mSKUs">—</div></div>
+    <div class="metric"><div class="metric-label">Total expenses</div><div class="metric-value amber" id="mExpTotal">—</div></div>
+    <div class="metric"><div class="metric-label">This month</div><div class="metric-value green" id="mExpMonth">—</div></div>
+  </div>
+
+  <!-- INVENTORY -->
+  <div id="panel-inventory" class="panel active">
+    <div class="panel-header">
+      <span class="panel-title">Inventory</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn primary" onclick="openModal('inv')">+ Add item</button>
+      </div>
+    </div>
+    <div class="filters">
+      <input type="text" id="invSearch" placeholder="Search items…" oninput="renderInventory()">
+      <select id="invCatFilter" onchange="renderInventory()"><option value="">All categories</option></select>
+      <select id="invStockFilter" onchange="renderInventory()">
+        <option value="">All stock levels</option>
+        <option value="in-stock">In stock</option>
+        <option value="low">Low stock</option>
+        <option value="out">Out of stock</option>
+      </select>
+    </div>
+    <div class="table-card">
+      <div class="table-wrap" id="invTable">
+        <div class="loading"><div class="spinner"></div>Loading inventory…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPENSES -->
+  <div id="panel-expenses" class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Expenses</span>
+      <button class="btn primary" onclick="openModal('exp')">+ Add expense</button>
+    </div>
+    <div class="filters">
+      <input type="text" id="expSearch" placeholder="Search expenses…" oninput="renderExpenses()">
+      <select id="expCatFilter" onchange="renderExpenses()"><option value="">All categories</option></select>
+      <input type="month" id="expMonthFilter" onchange="renderExpenses()">
+    </div>
+    <div class="table-card">
+      <div class="table-wrap" id="expTable">
+        <div class="loading"><div class="spinner"></div>Loading expenses…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- INVENTORY MODAL -->
+<div class="modal-overlay" id="modal-inv">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="invModalTitle">Add inventory item</div>
+      <button class="btn ghost sm" onclick="closeModal('inv')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row"><label>Item name *</label><input type="text" id="iName" placeholder="e.g. RM Filter Cotton - 500"></div>
+        <div class="form-row"><label>Variant / Size</label><input type="text" id="iSku" placeholder="e.g. 28m × 113mm"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Category</label>
+          <select id="iCat">
+            <option>Filter Cotton</option><option>Reef Salt</option><option>Fish Feed</option>
+            <option>Livestock</option><option>Equipment</option><option>Coral Accessories</option>
+            <option>Packaging</option><option>3D Printing</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Supplier</label><input type="text" id="iSupplier" placeholder="e.g. KENJOY"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Sale price (AUD)</label><input type="number" id="iSale" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="form-row"><label>Low stock threshold</label><input type="number" id="iLow" min="0" value="5"></div>
+      </div>
+      <div class="form-row"><label>Notes</label><textarea id="iNotes" placeholder="Any notes…"></textarea></div>
+      <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Initial batch (optional)</div>
+      <div class="form-grid">
+        <div class="form-row"><label>Order ref / Invoice</label><input type="text" id="bRef" placeholder="e.g. KJ20250607"></div>
+        <div class="form-row"><label>Batch date</label><input type="date" id="bDate"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Qty received</label><input type="number" id="bQty" min="0" placeholder="0"></div>
+        <div class="form-row"><label>Unit cost (AUD)</label><input type="number" id="bCost" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('inv')">Cancel</button>
+      <button class="btn primary" onclick="saveItem()">Save item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD BATCH MODAL -->
+<div class="modal-overlay" id="modal-batch">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Add batch</div>
+      <button class="btn ghost sm" onclick="closeModal('batch')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row"><label>Order ref / Invoice</label><input type="text" id="nbRef" placeholder="e.g. KJ-A20260309"></div>
+        <div class="form-row"><label>Date *</label><input type="date" id="nbDate"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Qty received *</label><input type="number" id="nbQty" min="1" placeholder="0"></div>
+        <div class="form-row"><label>Unit cost AUD *</label><input type="number" id="nbCost" min="0" step="0.01" placeholder="0.00"></div>
+      </div>
+      <div class="form-row"><label>Notes</label><textarea id="nbNotes" placeholder="Any notes about this batch…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('batch')">Cancel</button>
+      <button class="btn primary" onclick="saveBatch()">Add batch</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXPENSE MODAL -->
+<div class="modal-overlay" id="modal-exp">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="expModalTitle">Add expense</div>
+      <button class="btn ghost sm" onclick="closeModal('exp')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-row"><label>Description *</label><input type="text" id="eDesc" placeholder="e.g. Filter cotton – KENJOY"></div>
+        <div class="form-row"><label>Date *</label><input type="date" id="eDate"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Category</label>
+          <select id="eCat">
+            <option>Stock</option><option>Packaging/Posting</option><option>3D Printing</option>
+            <option>Equipment</option><option>Business Setup</option><option>Fish</option><option>Other</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Supplier</label><input type="text" id="eSupplier" placeholder="e.g. KENJOY"></div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Amount AUD *</label><input type="number" id="eAmount" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="form-row"><label>Payment method</label>
+          <select id="ePayment">
+            <option>Bank transfer</option><option>Alibaba</option><option>Wise</option>
+            <option>eBay</option><option>Amazon</option><option>Credit card</option><option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row"><label>Invoice / Notes</label><textarea id="eNotes" placeholder="Invoice number, notes…"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('exp')">Cancel</button>
+      <button class="btn primary" onclick="saveExpense()">Save expense</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SB_URL = 'https://vojgjpzrkfzuvbajmfaa.supabase.co';
+const SB_KEY = 'sb_publishable_5j0KdTSi88gPXYjdoxEI2g_YPKILD5T';
+
+const headers = {
+  'apikey': SB_KEY,
+  'Authorization': `Bearer ${SB_KEY}`,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=representation'
+};
+
+let inventory = [], batches = [], expenses = [];
+let editId = null, batchItemId = null;
+let expandedRows = new Set();
+
+async function sb(path, options = {}) {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, { headers, ...options });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function loadAll() {
+  try {
+    [inventory, batches, expenses] = await Promise.all([
+      sb('inventory?select=*&order=name.asc'),
+      sb('inventory_batches?select=*&order=date.asc'),
+      sb('expenses?select=*&order=date.desc'),
+    ]);
+    refreshAll();
+  } catch(e) {
+    showToast('Failed to load data: ' + e.message, true);
+  }
+}
+
+function refreshAll() {
+  updateMetrics();
+  renderInventory();
+  renderExpenses();
+  updateCatFilters();
+}
+
+function fmt(n) { return '$' + (parseFloat(n)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function stockStatus(item) {
+  const itemBatches = batches.filter(b => b.inventory_id === item.id && !b.depleted);
+  const total = itemBatches.reduce((s, b) => s + (b.qty_remaining || 0), 0);
+  if (total <= 0) return { cls: 'out', label: 'Out of stock', qty: 0 };
+  if (total <= (item.low_threshold || 5)) return { cls: 'low', label: 'Low stock', qty: total };
+  return { cls: 'in-stock', label: 'In stock', qty: total };
+}
+
+function avgCost(item) {
+  const active = batches.filter(b => b.inventory_id === item.id && (b.qty_remaining || 0) > 0);
+  if (!active.length) return 0;
+  const totalVal = active.reduce((s, b) => s + (b.unit_cost || 0) * (b.qty_remaining || 0), 0);
+  const totalQty = active.reduce((s, b) => s + (b.qty_remaining || 0), 0);
+  return totalQty ? totalVal / totalQty : 0;
+}
+
+function updateMetrics() {
+  const invVal = inventory.reduce((s, i) => {
+    const { qty } = stockStatus(i);
+    return s + avgCost(i) * qty;
+  }, 0);
+  document.getElementById('mInvVal').textContent = fmt(invVal);
+  document.getElementById('mSKUs').textContent = inventory.length;
+  const expTotal = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+  document.getElementById('mExpTotal').textContent = fmt(expTotal);
+  const now = new Date(), ym = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const expMonth = expenses.filter(e => (e.date||'').startsWith(ym)).reduce((s, e) => s + (parseFloat(e.amount)||0), 0);
+  document.getElementById('mExpMonth').textContent = fmt(expMonth);
+}
+
+function updateCatFilters() {
+  const ic = document.getElementById('invCatFilter'), ec = document.getElementById('expCatFilter');
+  const cv = ic.value, ev = ec.value;
+  const icats = [...new Set(inventory.map(i => i.category).filter(Boolean))].sort();
+  const ecats = [...new Set(expenses.map(e => e.category).filter(Boolean))].sort();
+  ic.innerHTML = '<option value="">All categories</option>' + icats.map(c => `<option${cv===c?' selected':''}>${esc(c)}</option>`).join('');
+  ec.innerHTML = '<option value="">All categories</option>' + ecats.map(c => `<option${ev===c?' selected':''}>${esc(c)}</option>`).join('');
+}
+
+function renderInventory() {
+  const q = document.getElementById('invSearch').value.toLowerCase();
+  const cat = document.getElementById('invCatFilter').value;
+  const stock = document.getElementById('invStockFilter').value;
+  const items = inventory.filter(i => {
+    if (q && !i.name.toLowerCase().includes(q) && !(i.sku||'').toLowerCase().includes(q)) return false;
+    if (cat && i.category !== cat) return false;
+    if (stock && stockStatus(i).cls !== stock) return false;
+    return true;
+  });
+  const el = document.getElementById('invTable');
+  if (!items.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><p>${inventory.length ? 'No items match filters.' : 'No inventory yet. Add your first item.'}</p></div>`;
+    return;
+  }
+  let html = `<table><thead><tr>
+    <th style="width:32px"></th>
+    <th>Item</th><th>Variant</th><th>Category</th><th>Supplier</th>
+    <th>Avg cost</th><th>Qty on hand</th><th>Value</th><th>Status</th><th></th>
+  </tr></thead><tbody>`;
+  items.forEach(i => {
+    const s = stockStatus(i);
+    const ac = avgCost(i);
+    const val = ac * s.qty;
+    const expanded = expandedRows.has(i.id);
+    const itemBatches = batches.filter(b => b.inventory_id === i.id).sort((a,b) => (a.date||'').localeCompare(b.date||''));
+    const activeBatch = itemBatches.find(b => !b.depleted && (b.qty_remaining||0) > 0);
+    html += `<tr>
+      <td><button class="expand-btn" onclick="toggleExpand('${i.id}')">${expanded ? '▾' : '▸'}</button></td>
+      <td style="font-weight:600" class="trunc" title="${esc(i.name)}">${esc(i.name)}</td>
+      <td class="text-muted nowrap">${esc(i.sku||'—')}</td>
+      <td><span class="badge cat">${esc(i.category||'—')}</span></td>
+      <td class="text-muted">${esc(i.supplier||'—')}</td>
+      <td class="nowrap">${fmt(ac)}</td>
+      <td style="font-weight:600">${s.qty}</td>
+      <td class="nowrap text-muted">${fmt(val)}</td>
+      <td><span class="badge ${s.cls}">${s.label}</span></td>
+      <td><div class="actions">
+        <button class="btn sm" onclick="openAddBatch('${i.id}')">+ Batch</button>
+        <button class="btn sm" onclick="openEditInv('${i.id}')">✏️</button>
+        <button class="btn sm danger" onclick="deleteItem('${i.id}')">🗑</button>
+      </div></td>
+    </tr>`;
+    if (expanded) {
+      html += `<tr class="expand-row"><td colspan="10"><div class="expand-content">
+        <div class="batch-header">
+          <div style="font-size:13px;font-weight:600">Batches — FIFO order</div>
+          <div class="batch-summary">
+            <span>📦 ${itemBatches.length} batches</span>
+            <span>✅ ${itemBatches.filter(b=>!b.depleted).length} active</span>
+            ${activeBatch ? `<span class="badge fifo">FIFO: depleting ${esc(activeBatch.order_ref||'oldest batch')}</span>` : ''}
+          </div>
+        </div>`;
+      if (!itemBatches.length) {
+        html += `<p class="text-muted">No batches yet. Click "+ Batch" to add one.</p>`;
+      } else {
+        html += `<table class="batch-table"><thead><tr>
+          <th>Order ref</th><th>Date</th><th>Received</th><th>Remaining</th><th>Unit cost</th><th>Batch value</th><th>Status</th><th></th>
+        </tr></thead><tbody>`;
+        itemBatches.forEach(b => {
+          const depleted = b.depleted || (b.qty_remaining||0) <= 0;
+          const isActive = b.id === (activeBatch||{}).id;
+          html += `<tr class="${depleted ? 'depleted' : ''}">
+            <td>${esc(b.order_ref||'—')}</td>
+            <td class="nowrap">${b.date||'—'}</td>
+            <td>${b.qty_received||0}</td>
+            <td style="font-weight:600">${b.qty_remaining||0}</td>
+            <td>${fmt(b.unit_cost)}</td>
+            <td>${fmt((b.unit_cost||0)*(b.qty_remaining||0))}</td>
+            <td>${depleted ? '<span class="badge out">Depleted</span>' : isActive ? '<span class="badge fifo">↑ Next FIFO</span>' : '<span class="badge in-stock">Active</span>'}</td>
+            <td><button class="btn sm danger" onclick="deleteBatch('${b.id}')">🗑</button></td>
+          </tr>`;
+        });
+        html += `</tbody></table>`;
+      }
+      html += `</div></td></tr>`;
+    }
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderExpenses() {
+  const q = document.getElementById('expSearch').value.toLowerCase();
+  const cat = document.getElementById('expCatFilter').value;
+  const month = document.getElementById('expMonthFilter').value;
+  const items = expenses.filter(e => {
+    if (q && !e.description.toLowerCase().includes(q) && !(e.notes||'').toLowerCase().includes(q)) return false;
+    if (cat && e.category !== cat) return false;
+    if (month && !(e.date||'').startsWith(month)) return false;
+    return true;
+  });
+  const el = document.getElementById('expTable');
+  if (!items.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🧾</div><p>${expenses.length ? 'No expenses match filters.' : 'No expenses yet.'}</p></div>`;
+    return;
+  }
+  const total = items.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  let html = `<table><thead><tr>
+    <th>Date</th><th>Description</th><th>Category</th><th>Supplier</th><th>Method</th><th class="text-right">Amount</th><th></th>
+  </tr></thead><tbody>`;
+  items.forEach(e => {
+    html += `<tr>
+      <td class="nowrap text-muted">${e.date||'—'}</td>
+      <td style="font-weight:500" class="trunc" title="${esc(e.description)}">${esc(e.description)}</td>
+      <td><span class="badge cat">${esc(e.category||'—')}</span></td>
+      <td class="text-muted">${esc(e.supplier||'—')}</td>
+      <td class="text-muted nowrap">${esc(e.payment_method||'—')}</td>
+      <td class="nowrap text-right" style="font-weight:600">${fmt(e.amount)}</td>
+      <td><div class="actions">
+        <button class="btn sm" onclick="openEditExp('${e.id}')">✏️</button>
+        <button class="btn sm danger" onclick="deleteExp('${e.id}')">🗑</button>
+      </div></td>
+    </tr>`;
+  });
+  html += `</tbody><tfoot><tr>
+    <td colspan="5" style="text-align:right;color:var(--muted);font-size:12px">Filtered total (${items.length} records)</td>
+    <td class="text-right">${fmt(total)}</td><td></td>
+  </tr></tfoot></table>`;
+  el.innerHTML = html;
+}
+
+function toggleExpand(id) {
+  if (expandedRows.has(id)) expandedRows.delete(id);
+  else expandedRows.add(id);
+  renderInventory();
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+function openModal(type) {
+  editId = null;
+  if (type === 'inv') {
+    document.getElementById('invModalTitle').textContent = 'Add inventory item';
+    ['iName','iSku','iNotes','iSupplier','iSale','bRef','bQty','bCost','bNotes'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+    document.getElementById('iLow').value = '5';
+    document.getElementById('bDate').value = new Date().toISOString().slice(0,10);
+  } else {
+    document.getElementById('expModalTitle').textContent = 'Add expense';
+    ['eDesc','eNotes','eSupplier','eAmount'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('eDate').value = new Date().toISOString().slice(0,10);
+  }
+  document.getElementById('modal-' + type).classList.add('open');
+}
+
+function openAddBatch(itemId) {
+  batchItemId = itemId;
+  ['nbRef','nbNotes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('nbDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('nbQty').value = '';
+  document.getElementById('nbCost').value = '';
+  document.getElementById('modal-batch').classList.add('open');
+}
+
+function openEditInv(id) {
+  const item = inventory.find(i => i.id === id); if (!item) return;
+  editId = id;
+  document.getElementById('invModalTitle').textContent = 'Edit item';
+  document.getElementById('iName').value = item.name || '';
+  document.getElementById('iSku').value = item.sku || '';
+  document.getElementById('iCat').value = item.category || 'Other';
+  document.getElementById('iSupplier').value = item.supplier || '';
+  document.getElementById('iSale').value = item.sale_price || '';
+  document.getElementById('iLow').value = item.low_threshold || 5;
+  document.getElementById('iNotes').value = item.notes || '';
+  document.getElementById('modal-inv').classList.add('open');
+}
+
+function openEditExp(id) {
+  const item = expenses.find(e => e.id === id); if (!item) return;
+  editId = id;
+  document.getElementById('expModalTitle').textContent = 'Edit expense';
+  document.getElementById('eDesc').value = item.description || '';
+  document.getElementById('eDate').value = item.date || '';
+  document.getElementById('eCat').value = item.category || 'Stock';
+  document.getElementById('eSupplier').value = item.supplier || '';
+  document.getElementById('eAmount').value = item.amount || '';
+  document.getElementById('ePayment').value = item.payment_method || 'Bank transfer';
+  document.getElementById('eNotes').value = item.notes || '';
+  document.getElementById('modal-exp').classList.add('open');
+}
+
+function closeModal(type) { document.getElementById('modal-' + type).classList.remove('open'); }
+
+async function saveItem() {
+  const name = document.getElementById('iName').value.trim();
+  if (!name) { showToast('Item name is required', true); return; }
+  const item = {
+    id: editId || uid(),
+    name, sku: document.getElementById('iSku').value.trim(),
+    category: document.getElementById('iCat').value,
+    supplier: document.getElementById('iSupplier').value.trim(),
+    sale_price: parseFloat(document.getElementById('iSale').value) || 0,
+    low_threshold: parseInt(document.getElementById('iLow').value) || 5,
+    notes: document.getElementById('iNotes').value.trim()
+  };
+  try {
+    if (editId) {
+      await sb(`inventory?id=eq.${editId}`, { method: 'PATCH', body: JSON.stringify(item) });
+      inventory = inventory.map(i => i.id === editId ? item : i);
+    } else {
+      await sb('inventory', { method: 'POST', body: JSON.stringify(item) });
+      inventory.push(item);
+      // Save initial batch if provided
+      const bQty = parseInt(document.getElementById('bQty').value);
+      const bCost = parseFloat(document.getElementById('bCost').value);
+      if (bQty > 0 && bCost > 0) {
+        const batch = {
+          id: uid(), inventory_id: item.id,
+          order_ref: document.getElementById('bRef').value.trim(),
+          date: document.getElementById('bDate').value,
+          qty_received: bQty, qty_remaining: bQty,
+          unit_cost: bCost, depleted: false,
+          notes: document.getElementById('bNotes') ? document.getElementById('bNotes').value.trim() : ''
+        };
+        await sb('inventory_batches', { method: 'POST', body: JSON.stringify(batch) });
+        batches.push(batch);
+      }
+    }
+    closeModal('inv'); showToast(editId ? 'Item updated' : 'Item added'); refreshAll();
+  } catch(e) { showToast('Error: ' + e.message, true); }
+}
+
+async function saveBatch() {
+  const qty = parseInt(document.getElementById('nbQty').value);
+  const cost = parseFloat(document.getElementById('nbCost').value);
+  const date = document.getElementById('nbDate').value;
+  if (!qty || !cost || !date) { showToast('Qty, cost and date are required', true); return; }
+  const batch = {
+    id: uid(), inventory_id: batchItemId,
+    order_ref: document.getElementById('nbRef').value.trim(),
+    date, qty_received: qty, qty_remaining: qty,
+    unit_cost: cost, depleted: false,
+    notes: document.getElementById('nbNotes').value.trim()
+  };
+  try {
+    await sb('inventory_batches', { method: 'POST', body: JSON.stringify(batch) });
+    batches.push(batch);
+    expandedRows.add(batchItemId);
+    closeModal('batch'); showToast('Batch added'); refreshAll();
+  } catch(e) { showToast('Error: ' + e.message, true); }
+}
+
+async function saveExpense() {
+  const description = document.getElementById('eDesc').value.trim();
+  const amount = parseFloat(document.getElementById('eAmount').value);
+  const date = document.getElementById('eDate').value;
+  if (!description || !amount || !date) { showToast('Description, date and amount required', true); return; }
+  const item = {
+    id: editId || uid(), description, date,
+    category: document.getElementById('eCat').value,
+    supplier: document.getElementById('eSupplier').value.trim(),
+    amount, payment_method: document.getElementById('ePayment').value,
+    notes: document.getElementById('eNotes').value.trim()
+  };
+  try {
+    if (editId) {
+      await sb(`expenses?id=eq.${editId}`, { method: 'PATCH', body: JSON.stringify(item) });
+      expenses = expenses.map(e => e.id === editId ? item : e);
+    } else {
+      await sb('expenses', { method: 'POST', body: JSON.stringify(item) });
+      expenses.unshift(item);
+    }
+    closeModal('exp'); showToast(editId ? 'Expense updated' : 'Expense added'); refreshAll();
+  } catch(e) { showToast('Error: ' + e.message, true); }
+}
+
+async function deleteItem(id) {
+  if (!confirm('Delete this item and all its batches?')) return;
+  try {
+    await sb(`inventory_batches?inventory_id=eq.${id}`, { method: 'DELETE' });
+    await sb(`inventory?id=eq.${id}`, { method: 'DELETE' });
+    inventory = inventory.filter(i => i.id !== id);
+    batches = batches.filter(b => b.inventory_id !== id);
+    expandedRows.delete(id);
+    showToast('Item deleted'); refreshAll();
+  } catch(e) { showToast('Error: ' + e.message, true); }
+}
+
+async function deleteBatch(id) {
+  if (!confirm('Delete this batch?')) return;
+  try {
+    await sb(`inventory_batches?id=eq.${id}`, { method: 'DELETE' });
+    batches = batches.filter(b => b.id !== id);
+    showToast('Batch deleted'); refreshAll();
+  } catch(e) { showToast('Error: ' + e.message, true); }
+}
+
+async function deleteExp(id) {
+  if (!confirm('Delete this expense?')) return;
+  try {
+    await sb(`expenses?id=eq.${id}`, { method: 'DELETE' });
+    expenses = expenses.filter(e => e.id !== id);
+    showToast('Expense deleted'); refreshAll();
+  } catch(e) { showToast('Error: ' + e.message, true); }
+}
+
+let toastTimer;
+function showToast(msg, err = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast' + (err ? ' error' : '');
+  t.classList.add('show'); clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); }));
+
+loadAll();
+</script>
+</body>
+</html>
