@@ -71,6 +71,17 @@
   .view-btn.active { background: var(--surface); color: var(--teal); box-shadow: var(--shadow); }
   .year-summary { font-size: 12px; color: var(--muted); padding: 8px 16px; background: #f1f5f9; border-top: 1px solid var(--border); }
 
+  /* SHOPIFY SYNC HEALTH BANNER */
+  .sync-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-radius: var(--radius); margin-bottom: 16px; font-size: 13px; }
+  .sync-banner.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+  .sync-banner.ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+  .sync-banner .sb-left { display: flex; align-items: center; gap: 8px; }
+  .link-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; padding: 1px 6px; border-radius: 10px; font-weight: 600; }
+  .link-badge.matched { background: #dcfce7; color: #15803d; }
+  .link-badge.not-found { background: #fef3c7; color: #92400e; }
+  .link-badge.not-mapped { background: #f1f5f9; color: #64748b; }
+  .link-badge.unknown { background: #f1f5f9; color: #94a3b8; }
+
   /* TABLE */
   .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
   .table-wrap { overflow-x: auto; }
@@ -186,6 +197,9 @@
         <button class="btn primary" onclick="openModal('inv')">+ Add item</button>
       </div>
     </div>
+
+    <div id="syncHealthBanner"></div>
+
     <div class="filters">
       <input type="text" id="invSearch" placeholder="Search items…" oninput="renderInventory()">
       <select id="invCatFilter" onchange="renderInventory()"><option value="">All categories</option></select>
@@ -194,6 +208,13 @@
         <option value="in-stock">In stock</option>
         <option value="low">Low stock</option>
         <option value="out">Out of stock</option>
+      </select>
+      <select id="invShopifyFilter" onchange="renderInventory()" title="Filter by Shopify sync link status">
+        <option value="">🔗 All items</option>
+        <option value="matched">✅ Linked &amp; syncing</option>
+        <option value="issues">⚠️ Not linked / not matched</option>
+        <option value="not-mapped">— No Shopify mapping</option>
+        <option value="not-found">⚠️ Mapped but not matched</option>
       </select>
     </div>
     <div class="table-card">
@@ -498,29 +519,31 @@ const SB_URL = 'https://vojgjpzrkfzuvbajmfaa.supabase.co';
 const SB_KEY = 'sb_publishable_5j0KdTSi88gPXYjdoxEI2g_YPKILD5T';
 const SHOPIFY_PROXY = 'https://budget-reefing-proxy.sandeepa.workers.dev';
 
-// Maps tracker inventory item ID -> Shopify product title (+ optional variant title)
+// Maps tracker inventory item ID -> Shopify product_id (+ variant_id where a product has multiple variants).
+// Uses numeric Shopify IDs (immutable) instead of title strings, so renaming a product in Shopify
+// can no longer silently break the match the way it used to.
 // Livestock excluded (tracked in Expenses only, not Inventory)
 const SHOPIFY_MAP = {
-  'inv_fc_rm500':    { product: 'Red Sea ReefMat 500 Compatible Fleece Roll' },
-  'inv_fc_rm1200':   { product: 'Red Sea ReefMat 1200 Compatible Fleece Roll' },
-  'inv_fc_bm10':     { product: 'Bubble Magus ARF-S G2 Small 25M Compatible Fleece Roll' },
-  'inv_fc_bm15':     { product: 'Bubble Magus ARF-M G2 Medium 25M Compatible Fleece Roll' },
-  'inv_fc_bm20':     { product: 'Bubble Magus ARF-L G2 Large 50M Compatible Fleece Roll' },
-  'inv_fc_rm250':    { product: 'Red Sea Reefmat 250 Compatible Fleece Roll' },
-  'inv_fc_nano':     { product: 'Red Sea Reefmat Nano Compatible Fleece Roll (2pk)' },
-  'inv_ato':         { product: 'AutoAQUA Smart ATO Lite SATO-260P Automatic Top Off System' },
-  'inv_dosing':      { product: 'Aquarium Dosing Containers (4 Pack)' },
-  'inv_mag_blk':     { product: 'Seaoura SR-520 Aquarium Thermometer Magnetic Cleaner', variant: 'Black' },
-  'inv_mag_wht':     { product: 'Seaoura SR-520 Aquarium Thermometer Magnetic Cleaner', variant: 'White' },
-  'inv_heat_300':    { product: 'Seaoura SR-317 Submersible Aquarium Heater 300W-800W', variant: '300W: Up to 230L' },
-  'inv_heat_500':    { product: 'Seaoura SR-317 Submersible Aquarium Heater 300W-800W', variant: '500W: Up to 300L' },
-  'inv_heat_800':    { product: 'Seaoura SR-317 Submersible Aquarium Heater 300W-800W', variant: '800W: Up to 680L' },
-  'inv_pipette':     { product: '45cm Coral Feeder Tube' },
-  'inv_frag_rack':   { product: '16 Hole Magnetic Coral Frag Rack – Up to 20mm Glass' },
-  'inv_sps_salt':    { product: 'SPS Coral Reef Sea Salt - 20KG' },
-  'inv_lps_salt':    { product: 'LPS Coral Reef Sea Salt - 20KG' },
-  'inv_feed_frenzy_1': { product: '1kg Marine Fish Pellets – Premium 1.0mm High-Quality Reef Fish Food' },
-  'inv_feed_frenzy_2': { product: '1kg Marine Fish Pellets – Premium 2.0mm High-Quality Reef Fish Food' },
+  'inv_fc_rm500':      { product_id: 7174719635502 },
+  'inv_fc_rm1200':     { product_id: 7174719602734 },
+  'inv_fc_bm10':       { product_id: 7580567371822 },
+  'inv_fc_bm15':       { product_id: 7580567306286 },
+  'inv_fc_bm20':       { product_id: 7580566093870 },
+  'inv_fc_rm250':      { product_id: 7576825004078 },
+  'inv_fc_nano':       { product_id: 7576825233454 },
+  'inv_ato':           { product_id: 7215810478126 },
+  'inv_dosing':        { product_id: 7559893680174 },
+  'inv_mag_blk':       { product_id: 7579359805486, variant_id: 42341599903790 },
+  'inv_mag_wht':       { product_id: 7579359805486, variant_id: 42341599936558 },
+  'inv_heat_300':      { product_id: 7579334082606, variant_id: 42341422596142 },
+  'inv_heat_500':      { product_id: 7579334082606, variant_id: 42341422628910 },
+  'inv_heat_800':      { product_id: 7579334082606, variant_id: 42341422661678 },
+  'inv_pipette':       { product_id: 7214861254702 },
+  'inv_frag_rack':     { product_id: 7525413027886 },
+  'inv_sps_salt':      { product_id: 7176695349294 },
+  'inv_lps_salt':      { product_id: 7174520635438 },
+  'inv_feed_frenzy_1': { product_id: 7200459587630 },
+  'inv_feed_frenzy_2': { product_id: 7199556403246 },
 };
 
 const headers = {
@@ -533,6 +556,10 @@ const headers = {
 let inventory = [], batches = [], expenses = [], ongoingCosts = [];
 let editId = null, batchItemId = null, batchEditId = null, adjustItemId = null, ongEditId = null;
 let expandedRows = new Set();
+
+// Shopify link/match status per inventory item id: 'matched' | 'not-found' | 'not-mapped' | undefined (not yet checked)
+let shopifyMatchStatus = {};
+let shopifyMatchCheckedAt = null;
 
 async function sb(path, options = {}) {
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, { headers, ...options });
@@ -554,6 +581,7 @@ async function loadAll() {
     ]);
     refreshAll();
     loadTotalSales(); // fire-and-forget, updates metric once it resolves
+    checkShopifyLinkHealth(); // fire-and-forget, dry-run check so the "not matched" view works without clicking Sync
   } catch(e) {
     showToast('Failed to load data: ' + e.message, true);
   }
@@ -635,25 +663,104 @@ function updateCatFilters() {
   oc.innerHTML = '<option value="">All categories</option>' + ocats.map(c => `<option${ov===c?' selected':''}>${esc(c)}</option>`).join('');
 }
 
+// ── SHOPIFY LINK STATUS ──────────────────────────────────────────────────
+// Determines, for every inventory item, whether it has a Shopify mapping and
+// whether that mapping actually matches something in the live Shopify data.
+// This is a read-only check (no quantities are changed) so it's safe to run
+// automatically on page load, separate from the "Sync from Shopify" button
+// which also writes updated quantities.
+function computeShopifyMatchStatus(shopifyItems) {
+  const status = {};
+  inventory.forEach(item => {
+    const mapping = SHOPIFY_MAP[item.id];
+    if (!mapping) { status[item.id] = 'not-mapped'; return; }
+    const match = shopifyItems.find(si =>
+      si.product_id === mapping.product_id &&
+      (mapping.variant_id ? si.variant_id === mapping.variant_id : true)
+    );
+    status[item.id] = match ? 'matched' : 'not-found';
+  });
+  return status;
+}
+
+async function checkShopifyLinkHealth() {
+  try {
+    const res = await fetch(`${SHOPIFY_PROXY}/inventory`);
+    const data = await res.json();
+    if (!data.items) return;
+    shopifyMatchStatus = computeShopifyMatchStatus(data.items);
+    shopifyMatchCheckedAt = new Date();
+    renderInventory();
+  } catch(e) { /* non-critical — banner just won't show until next successful check */ }
+}
+
+function shopifyIssueCount() {
+  return Object.values(shopifyMatchStatus).filter(s => s === 'not-found' || s === 'not-mapped').length;
+}
+
+function renderSyncHealthBanner() {
+  const el = document.getElementById('syncHealthBanner');
+  if (!el) return;
+  if (!shopifyMatchCheckedAt) { el.innerHTML = ''; return; }
+  const issues = shopifyIssueCount();
+  const checkedLabel = shopifyMatchCheckedAt.toLocaleTimeString();
+  if (issues === 0) {
+    el.innerHTML = `<div class="sync-banner ok">
+      <div class="sb-left">✅ All ${inventory.length} items are linked and matching Shopify</div>
+      <span class="text-muted" style="font-size:11px">Checked ${checkedLabel}</span>
+    </div>`;
+  } else {
+    el.innerHTML = `<div class="sync-banner warn">
+      <div class="sb-left">⚠️ ${issues} item${issues===1?'':'s'} not syncing with Shopify — stock levels for ${issues===1?'it':'them'} may be stale.</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="text-muted" style="font-size:11px">Checked ${checkedLabel}</span>
+        <button class="btn sm" onclick="document.getElementById('invShopifyFilter').value='issues';renderInventory();this.blur();">View unmatched</button>
+      </div>
+    </div>`;
+  }
+}
+
+function linkBadgeHtml(itemId) {
+  const status = shopifyMatchStatus[itemId];
+  if (status === 'matched') return `<span class="link-badge matched" title="Linked and matching Shopify">✅ Linked</span>`;
+  if (status === 'not-found') return `<span class="link-badge not-found" title="Mapped in SHOPIFY_MAP but no matching product/variant found in Shopify right now">⚠️ Not matched</span>`;
+  if (status === 'not-mapped') return `<span class="link-badge not-mapped" title="No Shopify mapping configured for this item — livestock/manual items are expected to show this">— No mapping</span>`;
+  return `<span class="link-badge unknown" title="Not checked yet">…</span>`;
+}
+
 function renderInventory() {
   const q = document.getElementById('invSearch').value.toLowerCase();
   const cat = document.getElementById('invCatFilter').value;
   const stock = document.getElementById('invStockFilter').value;
+  const shopifyFilter = document.getElementById('invShopifyFilter').value;
+
+  renderSyncHealthBanner();
+
   const items = inventory.filter(i => {
     if (q && !i.name.toLowerCase().includes(q) && !(i.sku||'').toLowerCase().includes(q)) return false;
     if (cat && i.category !== cat) return false;
     if (stock && stockStatus(i).cls !== stock) return false;
+    if (shopifyFilter) {
+      const s = shopifyMatchStatus[i.id];
+      if (shopifyFilter === 'issues' && !(s === 'not-found' || s === 'not-mapped')) return false;
+      if (shopifyFilter === 'matched' && s !== 'matched') return false;
+      if (shopifyFilter === 'not-mapped' && s !== 'not-mapped') return false;
+      if (shopifyFilter === 'not-found' && s !== 'not-found') return false;
+    }
     return true;
   });
   const el = document.getElementById('invTable');
   if (!items.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><p>${inventory.length ? 'No items match filters.' : 'No inventory yet. Add your first item.'}</p></div>`;
+    const msg = shopifyFilter
+      ? 'No items match this Shopify sync filter.'
+      : (inventory.length ? 'No items match filters.' : 'No inventory yet. Add your first item.');
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><p>${msg}</p></div>`;
     return;
   }
   let html = `<table><thead><tr>
     <th style="width:32px"></th>
     <th>Item</th><th>Variant</th><th>Category</th><th>Supplier</th>
-    <th>Avg cost</th><th>Qty on hand</th><th>Value</th><th>Status</th><th></th>
+    <th>Avg cost</th><th>Qty on hand</th><th>Value</th><th>Status</th><th>Shopify</th><th></th>
   </tr></thead><tbody>`;
   items.forEach(i => {
     const s = stockStatus(i);
@@ -672,6 +779,7 @@ function renderInventory() {
       <td style="font-weight:600">${s.qty} <button class="btn sm ghost" style="padding:2px 6px;font-size:11px" onclick="openAdjustQty('${i.id}')" title="Adjust qty on hand">✏️</button></td>
       <td class="nowrap text-muted">${fmt(val)}</td>
       <td><span class="badge ${s.cls}">${s.label}</span></td>
+      <td>${linkBadgeHtml(i.id)}</td>
       <td><div class="actions">
         <button class="btn sm" onclick="openAddBatch('${i.id}')">+ Batch</button>
         <button class="btn sm" onclick="openEditInv('${i.id}')">✏️</button>
@@ -679,7 +787,7 @@ function renderInventory() {
       </div></td>
     </tr>`;
     if (expanded) {
-      html += `<tr class="expand-row"><td colspan="10"><div class="expand-content">
+      html += `<tr class="expand-row"><td colspan="11"><div class="expand-content">
         <div class="batch-header">
           <div style="font-size:13px;font-weight:600">Batches — FIFO order</div>
           <div class="batch-summary">
@@ -982,6 +1090,10 @@ async function syncInventoryFromShopify() {
   const data = await res.json();
   if (!data.items) throw new Error('Unexpected response from Shopify proxy');
 
+  // Refresh the link-status map (drives the banner + badges + filter) using the same data
+  shopifyMatchStatus = computeShopifyMatchStatus(data.items);
+  shopifyMatchCheckedAt = new Date();
+
   let updated = 0, unchanged = 0, notFound = [];
 
   for (const [itemId, mapping] of Object.entries(SHOPIFY_MAP)) {
@@ -989,8 +1101,8 @@ async function syncInventoryFromShopify() {
     if (!item) continue;
 
     const match = data.items.find(si =>
-      si.product_title === mapping.product &&
-      (mapping.variant ? si.variant_title === mapping.variant : true)
+      si.product_id === mapping.product_id &&
+      (mapping.variant_id ? si.variant_id === mapping.variant_id : true)
     );
 
     if (!match) { notFound.push(item.name); continue; }
