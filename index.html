@@ -343,7 +343,9 @@
                 $<input type="number" id="taxClosingStock" value="" min="0" step="0.01" placeholder="enter value"
                   style="width:100px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;text-align:right;font-size:13px"
                   onchange="renderTaxCalc()">
-                <button class="btn" style="font-size:11px;padding:3px 8px" onclick="useCurrentInventoryValue()">Use current inventory ($<span id="taxCurrentInv">…</span>)</button>
+                <button class="btn" id="taxUseInvBtn" style="font-size:11px;padding:3px 8px" onclick="useCurrentInventoryValue()">Use current inventory (…)</button>
+                <button class="btn" style="font-size:11px;padding:3px 8px;background:#f1f5f9" onclick="document.getElementById('jsonlFileInput').click()" title="Upload Shopify month-end inventory JSONL to calculate closing stock using tracker avg costs">📂 Upload Shopify JSONL</button>
+                <input type="file" id="jsonlFileInput" accept=".jsonl,.json" style="display:none" onchange="parseShopifyJSONL(this)">
               </div>
             </td>
           </tr>
@@ -720,6 +722,7 @@ function updateMetrics() {
   }, 0);
   document.getElementById('mInvVal').textContent = fmt(invVal);
   document.getElementById('mSKUs').textContent = inventory.length;
+  updateTaxInvBtn();
   const expTotal = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0)
                   + ongoingCosts.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0);
   document.getElementById('mExpTotal').textContent = fmt(expTotal);
@@ -1534,11 +1537,96 @@ function setTaxFY(endYear) {
   document.getElementById('taxEnd').value = `${endYear}-06-30`;
 }
 
+function localInventoryValue() {
+  return inventory.reduce((s, item) => s + avgCost(item) * stockStatus(item).qty, 0);
+}
+
+function updateTaxInvBtn() {
+  const btn = document.getElementById('taxUseInvBtn');
+  if (btn) btn.textContent = `Use current inventory (${fmt(localInventoryValue())})`;
+}
+
 function useCurrentInventoryValue() {
-  if (!taxCache.inventoryCost) { showToast('Sync first to get inventory cost data', true); return; }
-  const val = taxCache.inventoryCost.total_stock_value || 0;
+  const val = localInventoryValue();
   document.getElementById('taxClosingStock').value = val.toFixed(2);
   renderTaxCalc();
+}
+
+// Map Shopify product titles (lowercase) → tracker inventory item IDs
+// Used by parseShopifyJSONL to match JSONL rows to tracker avg costs
+const SHOPIFY_TITLE_MAP = {
+  '16 hole magnetic coral frag rack': 'inv_frag_rack',
+  '45cm coral feeder tube': 'inv_pipette',
+  'aquarium dosing containers': 'inv_dosing',
+  'autoaqua smart asov': 'inv_asov',
+  'autoaqua smart ato duo g2': 'inv_duo_g2',
+  'autoaqua smart ato lite': 'inv_ato',
+  'autoaqua smart ato nano g2': 'inv_nano_g2',
+  'autoaqua smart stir ss-100': 'inv_shaker',
+  'autoaqua titanium one tds-100': 'inv_tds',
+  'autoaqua titanium s1 tds-100s': 'inv_tds_s1',
+  'autoaqua titanium s2 tds-200s': 'inv_tds200',
+  'autoaqua titanium s3 tds-300s': 'inv_tds300',
+  'bubble magus arf-l': 'inv_fc_bm20',
+  'bubble magus arf-m': 'inv_fc_bm15',
+  'bubble magus arf-s': 'inv_fc_bm10',
+  'clarisea sk3000xl': 'inv_fc_cs10',
+  'clarisea sk5000xl': 'inv_fc_cs15',
+  'kamoer x1 pro 2 v2': 'inv_kamoer_p2',
+  'kamoer x1 pro-t2': 'inv_kamoer_t2',
+  'lps coral reef sea salt': 'inv_lps_salt',
+  'red sea reefmat 1200': 'inv_fc_rm1200',
+  'red sea reefmat 500': 'inv_fc_rm500',
+  'red sea reefmat 250': 'inv_fc_rm250',
+  'red sea reefmat nano': 'inv_fc_nano',
+  'sps coral reef sea salt': 'inv_sps_salt',
+  'seaoura sr-520': 'inv_mag_blk',
+};
+
+function matchShopifyTitle(title) {
+  const t = title.toLowerCase();
+  for (const [key, id] of Object.entries(SHOPIFY_TITLE_MAP)) {
+    if (t.includes(key)) return id;
+  }
+  return null;
+}
+
+function parseShopifyJSONL(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    let total = 0;
+    const rows = [];
+    const unmatched = [];
+
+    for (const line of lines) {
+      let row;
+      try { row = JSON.parse(line); } catch { continue; }
+      const units = Math.max(row.ending_inventory_units || 0, 0);
+      if (!units) continue;
+      const invId = matchShopifyTitle(row.product_title || '');
+      if (invId) {
+        const item = inventory.find(i => i.id === invId);
+        const cost = item ? avgCost(item) : 0;
+        const val = units * cost;
+        total += val;
+        rows.push({ title: row.product_title, units, cost, val });
+      } else {
+        unmatched.push(`${row.product_title} (${units} units)`);
+      }
+    }
+
+    document.getElementById('taxClosingStock').value = total.toFixed(2);
+    renderTaxCalc();
+
+    let msg = `Shopify JSONL loaded.\n\nClosing stock: ${fmt(total)} (${rows.length} products matched, using tracker avg costs)`;
+    if (unmatched.length) msg += `\n\nNot matched (excluded):\n• ${unmatched.join('\n• ')}`;
+    alert(msg);
+    input.value = ''; // reset so same file can be re-loaded
+  };
+  reader.readAsText(file);
 }
 
 function renderTaxCalc() {
