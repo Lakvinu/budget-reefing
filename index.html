@@ -360,8 +360,8 @@
           <tr><td>Net Revenue</td><td class="text-right nowrap" id="taxCalcSales2">—</td></tr>
           <tr><td>− Total Expenses</td><td class="text-right nowrap" id="taxCalcExpenses">—</td></tr>
           <tr style="border-top:1px solid var(--border)"><td><strong>Gross Profit</strong></td><td class="text-right nowrap"><strong id="taxGrossProfit">—</strong></td></tr>
-          <tr><td>+ Opening Stock Value</td><td class="text-right nowrap" id="taxCalcOpening">$0.00</td></tr>
-          <tr><td>− Closing Stock Value</td><td class="text-right nowrap" id="taxCalcStock">—</td></tr>
+          <tr><td>− Opening Stock Value</td><td class="text-right nowrap" id="taxCalcOpening">$0.00</td></tr>
+          <tr><td>+ Closing Stock Value</td><td class="text-right nowrap" id="taxCalcStock">—</td></tr>
         </tbody>
         <tfoot><tr class="total-row"><td>Estimated Taxable Income</td><td class="text-right nowrap" id="taxFinal" style="color:var(--teal);font-size:16px">—</td></tr></tfoot>
       </table></div>
@@ -608,6 +608,11 @@ const SHOPIFY_MAP = {
   'inv_lps_salt':      { product_id: 7174520635438 },
   'inv_feed_frenzy_1': { product_id: 7200459587630 },
   'inv_feed_frenzy_2': { product_id: 7199556403246 },
+  'inv_tds_s1':        { product_id: 7648969097262 }, // AutoAqua Titanium S1 TDS-100S
+  'inv_tds200':        { product_id: 7648969162798 }, // AutoAqua Titanium S2 TDS-200S
+  'inv_tds300':        { product_id: 7648969195566 }, // AutoAqua Titanium S3 TDS-300S
+  'inv_kamoer_p2':     { product_id: 7657158967342 }, // Kamoer X1 Pro 2 V2
+  'inv_kamoer_t2':     { product_id: 7657159098414 }, // Kamoer X1 Pro-T2
   'inv_tds':           { product_id: 7608068472878 }, // AutoAqua Titanium One TDS-100
   'inv_shaker':        { product_id: 7607602085934 }, // AutoAqua Smart Stir SS-100
   'inv_duo_g2':        { product_id: 7611972190254 }, // AutoAQUA Smart Duo G2 SATO-286P
@@ -1549,7 +1554,7 @@ function renderTaxCalc() {
                  + ongInRange.reduce((s,o) => s+(parseFloat(o.amount)||0),0);
 
   const grossProfit = sales - totalExp;
-  const taxableIncome = grossProfit + opening - closing;
+  const taxableIncome = grossProfit - opening + closing;
 
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = fmt(val); };
   set('taxCalcSales2', sales);
@@ -1771,7 +1776,7 @@ function renderTaxSummary() {
 
   // ── Final calculation ──
   const grossProfit = sales - totalExpenses;
-  const taxableIncome = grossProfit + opening - closing;
+  const taxableIncome = grossProfit - opening + closing;
 
   set('taxCalcSales2', sales);
   set('taxCalcExpenses', totalExpenses);
