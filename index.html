@@ -1677,7 +1677,7 @@ function renderTaxCalc() {
 function renderLateExpenses(start, end) {
   const tbody = document.getElementById('lateExpBody');
   const totalEl = document.getElementById('lateExpTotal');
-  if (!tbody || !start || !end) return;
+  if (!tbody || !totalEl || !start || !end) return;
 
   // Last 4 months of the period
   const endDate = new Date(end);
@@ -1906,11 +1906,7 @@ function renderTaxSummary() {
   const opening = parseFloat(document.getElementById('taxOpeningStock')?.value) || 0;
 
   // Pre-fill current inv cost display if available
-  if (taxCache.inventoryCost) {
-    const cv = taxCache.inventoryCost.total_stock_value || 0;
-    const el = document.getElementById('taxCurrentInv');
-    if (el) el.textContent = cv.toFixed(2);
-  }
+  // taxCurrentInv span removed; button label updated via updateTaxInvBtn()
 
   // ── Final calculation ──
   const grossProfit = sales - totalExpenses;
