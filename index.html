@@ -1921,6 +1921,7 @@ function renderTaxSummary() {
   set('taxStock', closing);
   const scEl = document.getElementById('taxStockChange');
   if (scEl) scEl.textContent = fmt(closing - opening);
+  renderLateExpenses(start, end);
 }
 
 // ── PICK LIST (unfulfilled Shopify orders) ─────────────────────────────────
