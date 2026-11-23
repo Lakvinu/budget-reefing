@@ -266,46 +266,108 @@
   <div id="panel-tax" class="panel">
     <div class="panel-header">
       <span class="panel-title">Tax Summary</span>
-      <button class="btn" id="taxSyncBtn" onclick="syncTaxData()">🔄 Sync Sales</button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn" id="taxSyncBtn" onclick="syncTaxData()">🔄 Sync Sales</button>
+        <button class="btn" onclick="printTaxSummary()" style="background:#f1f5f9">🖨️ Print / Export</button>
+        <span id="taxSyncStatus" class="text-muted" style="font-size:12px"></span>
+      </div>
     </div>
-    <div class="filters" style="margin-bottom:20px">
+
+    <!-- Date range + FY presets -->
+    <div class="filters" style="margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <label style="font-size:12px;color:var(--muted)">From</label>
       <input type="date" id="taxStart">
       <label style="font-size:12px;color:var(--muted)">To</label>
       <input type="date" id="taxEnd">
-      <button class="btn primary" onclick="renderTaxSummary()">Calculate</button>
-      <span id="taxSyncStatus" class="text-muted" style="font-size:12px;margin-left:auto"></span>
+      <button class="btn" onclick="setTaxFY(2025)" style="font-size:12px">FY2024–25</button>
+      <button class="btn" onclick="setTaxFY(2026)" style="font-size:12px">FY2025–26</button>
+      <button class="btn primary" onclick="syncTaxData()">🔄 Calculate & Sync</button>
     </div>
 
-    <div class="metrics" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 20px;">
-      <div class="metric"><div class="metric-label">Total Sales (Shopify)</div><div class="metric-value green" id="taxSales">—</div></div>
+    <!-- Top metrics -->
+    <div class="metrics" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px" id="taxMetrics">
+      <div class="metric"><div class="metric-label">Total Revenue</div><div class="metric-value green" id="taxSales">—</div></div>
+      <div class="metric"><div class="metric-label">Total Expenses</div><div class="metric-value red" id="taxTotalExpenses">—</div></div>
       <div class="metric"><div class="metric-label">Closing Stock Value</div><div class="metric-value teal" id="taxStock">—</div></div>
+      <div class="metric"><div class="metric-label">Est. Taxable Income</div><div class="metric-value" id="taxFinalMetric" style="font-size:20px;font-weight:700">—</div></div>
     </div>
 
-    <div class="table-card" style="margin-bottom:20px">
-      <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">Expenses breakdown for period</div>
+    <!-- Revenue breakdown -->
+    <div class="table-card" style="margin-bottom:16px">
+      <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">📈 Revenue (Shopify)</div>
       <div class="table-wrap"><table>
         <tbody>
-          <tr><td>Logged Expenses</td><td class="text-right nowrap" id="taxExpenses">—</td></tr>
-          <tr><td>Ongoing Costs <span class="text-muted" style="font-size:11px">(incl. payment fees, postage, ads, subscriptions)</span></td><td class="text-right nowrap" id="taxOngoing">—</td></tr>
+          <tr><td>Gross Sales</td><td class="text-right nowrap" id="taxGross">—</td></tr>
+          <tr><td>− Discounts</td><td class="text-right nowrap" id="taxDiscounts">—</td></tr>
+          <tr><td>+ Shipping Charged</td><td class="text-right nowrap" id="taxShipping">—</td></tr>
+          <tr><td>− Returns / Refunds</td><td class="text-right nowrap" id="taxReturns">—</td></tr>
+          <tr><td>Orders</td><td class="text-right nowrap" id="taxOrders">—</td></tr>
         </tbody>
-        <tfoot><tr class="total-row"><td>Total Expenses</td><td class="text-right nowrap" id="taxTotalExpenses">—</td></tr></tfoot>
+        <tfoot><tr class="total-row"><td>Net Revenue</td><td class="text-right nowrap" id="taxCalcSales">—</td></tr></tfoot>
       </table></div>
     </div>
 
-    <div class="table-card">
-      <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">Estimated Taxable Income</div>
+    <!-- Expenses breakdown by category -->
+    <div class="table-card" style="margin-bottom:16px">
+      <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">📋 Expenses Breakdown</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Category</th><th class="text-right">Amount</th><th class="text-right" style="font-size:11px;color:var(--muted)"># items</th></tr></thead>
+        <tbody id="taxExpenseRows"></tbody>
+        <tfoot><tr class="total-row"><td>Total Expenses</td><td class="text-right nowrap" id="taxExpenses">—</td><td></td></tr></tfoot>
+      </table></div>
+    </div>
+
+    <!-- Inventory / COGS -->
+    <div class="table-card" style="margin-bottom:16px">
+      <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">📦 Inventory & COGS</div>
       <div class="table-wrap"><table>
         <tbody>
-          <tr><td>Total Sales</td><td class="text-right nowrap" id="taxCalcSales">—</td></tr>
-          <tr><td>− Total Expenses (incl. fees)</td><td class="text-right nowrap" id="taxCalcExpenses">—</td></tr>
-          <tr><td>+ Closing Stock Value</td><td class="text-right nowrap" id="taxCalcStock">—</td></tr>
-          <tr><td>− Opening Stock Value</td><td class="text-right nowrap" id="taxCalcOpening">$0.00 <span class="text-muted" style="font-size:11px">(first year)</span></td></tr>
+          <tr>
+            <td>Opening Stock Value <span class="text-muted" style="font-size:11px">(start of period)</span></td>
+            <td class="text-right">
+              <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+                $<input type="number" id="taxOpeningStock" value="0" min="0" step="0.01"
+                  style="width:90px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;text-align:right;font-size:13px"
+                  onchange="renderTaxCalc()">
+                <span class="text-muted" style="font-size:11px" id="taxOpeningNote">(first year — set to 0)</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              Closing Stock Value <span class="text-muted" style="font-size:11px">(end of period)</span>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">Enter actual stocktake value, or use current inventory as a guide</div>
+            </td>
+            <td class="text-right">
+              <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+                $<input type="number" id="taxClosingStock" value="" min="0" step="0.01" placeholder="enter value"
+                  style="width:100px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;text-align:right;font-size:13px"
+                  onchange="renderTaxCalc()">
+                <button class="btn" style="font-size:11px;padding:3px 8px" onclick="useCurrentInventoryValue()">Use current inventory ($<span id="taxCurrentInv">…</span>)</button>
+              </div>
+            </td>
+          </tr>
+          <tr><td>Change in Stock (Opening − Closing)</td><td class="text-right nowrap" id="taxStockChange">—</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+
+    <!-- Final calculation -->
+    <div class="table-card" style="margin-bottom:16px">
+      <div style="padding:12px 16px;background:#f8fafc;border-bottom:1px solid var(--border);font-weight:600;font-size:13px">🧮 Taxable Income Calculation</div>
+      <div class="table-wrap"><table>
+        <tbody>
+          <tr><td>Net Revenue</td><td class="text-right nowrap" id="taxCalcSales2">—</td></tr>
+          <tr><td>− Total Expenses</td><td class="text-right nowrap" id="taxCalcExpenses">—</td></tr>
+          <tr style="border-top:1px solid var(--border)"><td><strong>Gross Profit</strong></td><td class="text-right nowrap"><strong id="taxGrossProfit">—</strong></td></tr>
+          <tr><td>+ Opening Stock Value</td><td class="text-right nowrap" id="taxCalcOpening">$0.00</td></tr>
+          <tr><td>− Closing Stock Value</td><td class="text-right nowrap" id="taxCalcStock">—</td></tr>
         </tbody>
         <tfoot><tr class="total-row"><td>Estimated Taxable Income</td><td class="text-right nowrap" id="taxFinal" style="color:var(--teal);font-size:16px">—</td></tr></tfoot>
       </table></div>
     </div>
-    <p class="text-muted" style="margin-top:12px;font-size:12px">This is an estimate for reference only — not financial or tax advice. Confirm figures with a registered tax agent before lodging.</p>
+
+    <p class="text-muted" style="margin-top:4px;font-size:12px">⚠️ Estimate for reference only — not financial or tax advice. ABN: 60 834 296 941 · Not GST registered. Confirm all figures with your registered tax agent.</p>
   </div>
 
   <!-- PICK LIST -->
@@ -1433,13 +1495,25 @@ async function syncTaxData() {
   statusEl.textContent = '';
 
   try {
-    const salesRes = await fetch(`${SHOPIFY_PROXY}/sales?start=${start}&end=${end}`).then(r => r.json());
+    const [salesRes, invRes] = await Promise.all([
+      fetch(`${SHOPIFY_PROXY}/sales?start=${start}&end=${end}`).then(r => r.json()),
+      fetch(`${SHOPIFY_PROXY}/inventory-cost`).then(r => r.json()),
+    ]);
     if (salesRes.error) throw new Error('Sales: ' + salesRes.error);
 
+    // Store full sales breakdown
+    taxCache.salesData = salesRes;
     taxCache.sales = salesRes.total_sales || 0;
 
+    // Store inventory cost data
+    if (!invRes.error) {
+      taxCache.inventoryCost = invRes;
+      const totalCostVal = invRes.total_stock_value || 0;
+      document.getElementById('taxCurrentInv').textContent = totalCostVal.toFixed(2);
+    }
+
     statusEl.textContent = `Last synced: ${new Date().toLocaleTimeString()}`;
-    showToast('Synced sales from Shopify');
+    showToast('Synced sales & inventory cost from Shopify');
     renderTaxSummary();
   } catch(e) {
     showToast('Sync failed: ' + e.message, true);
@@ -1447,6 +1521,51 @@ async function syncTaxData() {
     btn.disabled = false;
     btn.textContent = '🔄 Sync Sales';
   }
+}
+
+function setTaxFY(endYear) {
+  // FY ending June 30 of endYear (e.g. endYear=2026 → FY2025-26: 2025-07-01 to 2026-06-30)
+  document.getElementById('taxStart').value = `${endYear - 1}-07-01`;
+  document.getElementById('taxEnd').value = `${endYear}-06-30`;
+}
+
+function useCurrentInventoryValue() {
+  if (!taxCache.inventoryCost) { showToast('Sync first to get inventory cost data', true); return; }
+  const val = taxCache.inventoryCost.total_stock_value || 0;
+  document.getElementById('taxClosingStock').value = val.toFixed(2);
+  renderTaxCalc();
+}
+
+function renderTaxCalc() {
+  const opening = parseFloat(document.getElementById('taxOpeningStock')?.value) || 0;
+  const closing = parseFloat(document.getElementById('taxClosingStock')?.value) || 0;
+  const sales = taxCache.sales ?? 0;
+
+  const start = document.getElementById('taxStart').value;
+  const end = document.getElementById('taxEnd').value;
+  const expInRange = expenses.filter(e => e.date >= start && e.date <= end);
+  const ongInRange = ongoingCosts.filter(o => o.date >= start && o.date <= end);
+  const totalExp = expInRange.reduce((s,e) => s+(parseFloat(e.amount)||0),0)
+                 + ongInRange.reduce((s,o) => s+(parseFloat(o.amount)||0),0);
+
+  const grossProfit = sales - totalExp;
+  const taxableIncome = grossProfit + opening - closing;
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = fmt(val); };
+  set('taxCalcSales2', sales);
+  set('taxCalcExpenses', totalExp);
+  set('taxGrossProfit', grossProfit);
+  set('taxCalcOpening', opening);
+  set('taxCalcStock', closing);
+  set('taxFinal', taxableIncome);
+  set('taxFinalMetric', taxableIncome);
+  set('taxStock', closing);
+  const stockChangeEl = document.getElementById('taxStockChange');
+  if (stockChangeEl) stockChangeEl.textContent = fmt(closing - opening);
+}
+
+function printTaxSummary() {
+  window.print();
 }
 
 function lastDayOfMonth(ym) {
@@ -1576,6 +1695,7 @@ async function syncEverything() {
       try {
         const salesRes = await fetch(`${SHOPIFY_PROXY}/sales?start=${taxStart}&end=${taxEnd}`).then(r => r.json());
         if (!salesRes.error) {
+          taxCache.salesData = salesRes;
           taxCache.sales = salesRes.total_sales || 0;
           const taxStatusEl = document.getElementById('taxSyncStatus');
           if (taxStatusEl) taxStatusEl.textContent = `Last synced: ${new Date().toLocaleTimeString()}`;
@@ -1601,33 +1721,68 @@ function renderTaxSummary() {
   const end = document.getElementById('taxEnd').value;
   if (!start || !end) return;
 
-  // Expenses + Ongoing Costs within range (Ongoing Costs already includes synced payment fees)
+  // ── Revenue breakdown from Shopify sync ──
+  const sd = taxCache.salesData || {};
+  const sales = taxCache.sales ?? 0;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = typeof val === 'number' ? fmt(val) : val; };
+  set('taxSales', sales);
+  set('taxGross', sd.gross_sales ?? '—');
+  set('taxDiscounts', sd.discounts != null ? '-' + fmt(sd.discounts) : '—');
+  set('taxShipping', sd.net_shipping ?? '—');
+  set('taxReturns', sd.returns != null ? '-' + fmt(sd.returns) : '—');
+  set('taxOrders', sd.order_count ?? '—');
+  set('taxCalcSales', sales);
+
+  // ── Expense breakdown by category ──
   const expInRange = expenses.filter(e => e.date >= start && e.date <= end);
   const ongInRange = ongoingCosts.filter(o => o.date >= start && o.date <= end);
-  const expTotal = expInRange.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
-  const ongTotal = ongInRange.reduce((s,o) => s + (parseFloat(o.amount)||0), 0);
-
-  const sales = taxCache.sales ?? 0;
-
-  // Closing stock value = current inventory value (qty on hand × avg cost)
-  const stockValue = inventory.reduce((s, i) => {
-    const { qty } = stockStatus(i);
-    return s + avgCost(i) * qty;
-  }, 0);
-
+  const expTotal = expInRange.reduce((s,e) => s+(parseFloat(e.amount)||0), 0);
+  const ongTotal = ongInRange.reduce((s,o) => s+(parseFloat(o.amount)||0), 0);
   const totalExpenses = expTotal + ongTotal;
-  const taxableIncome = sales - totalExpenses + stockValue - 0; // opening stock = 0 (first year)
 
-  document.getElementById('taxSales').textContent = fmt(sales);
-  document.getElementById('taxStock').textContent = fmt(stockValue);
-  document.getElementById('taxExpenses').textContent = fmt(expTotal);
-  document.getElementById('taxOngoing').textContent = fmt(ongTotal);
-  document.getElementById('taxTotalExpenses').textContent = fmt(totalExpenses);
+  // Group by category
+  const catMap = {};
+  [...expInRange, ...ongInRange].forEach(item => {
+    const cat = item.category || 'Uncategorised';
+    if (!catMap[cat]) catMap[cat] = { total: 0, count: 0 };
+    catMap[cat].total += parseFloat(item.amount) || 0;
+    catMap[cat].count++;
+  });
+  const tbody = document.getElementById('taxExpenseRows');
+  if (tbody) {
+    tbody.innerHTML = Object.entries(catMap)
+      .sort((a,b) => b[1].total - a[1].total)
+      .map(([cat, d]) => `<tr><td>${cat}</td><td>${fmt(d.total)}</td><td>${d.count}</td></tr>`)
+      .join('') || '<tr><td colspan="3" style="color:var(--muted)">No expenses in this period</td></tr>';
+  }
+  set('taxExpenses', totalExpenses);
+  set('taxTotalExpenses', totalExpenses);
 
-  document.getElementById('taxCalcSales').textContent = fmt(sales);
-  document.getElementById('taxCalcExpenses').textContent = fmt(totalExpenses);
-  document.getElementById('taxCalcStock').textContent = fmt(stockValue);
-  document.getElementById('taxFinal').textContent = fmt(taxableIncome);
+  // ── Inventory / closing stock ──
+  const closing = parseFloat(document.getElementById('taxClosingStock')?.value) || 0;
+  const opening = parseFloat(document.getElementById('taxOpeningStock')?.value) || 0;
+
+  // Pre-fill current inv cost display if available
+  if (taxCache.inventoryCost) {
+    const cv = taxCache.inventoryCost.total_stock_value || 0;
+    const el = document.getElementById('taxCurrentInv');
+    if (el) el.textContent = cv.toFixed(2);
+  }
+
+  // ── Final calculation ──
+  const grossProfit = sales - totalExpenses;
+  const taxableIncome = grossProfit + opening - closing;
+
+  set('taxCalcSales2', sales);
+  set('taxCalcExpenses', totalExpenses);
+  set('taxGrossProfit', grossProfit);
+  set('taxCalcOpening', opening);
+  set('taxCalcStock', closing);
+  set('taxFinal', taxableIncome);
+  set('taxFinalMetric', taxableIncome);
+  set('taxStock', closing);
+  const scEl = document.getElementById('taxStockChange');
+  if (scEl) scEl.textContent = fmt(closing - opening);
 }
 
 // ── PICK LIST (unfulfilled Shopify orders) ─────────────────────────────────
