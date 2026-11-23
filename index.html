@@ -370,6 +370,21 @@
     </div>
 
     <p class="text-muted" style="margin-top:4px;font-size:12px">⚠️ Estimate for reference only — not financial or tax advice. ABN: 60 834 296 941 · Not GST registered. Confirm all figures with your registered tax agent.</p>
+
+    <!-- Late-period expenses (in-transit stock helper) -->
+    <div class="table-card" style="margin-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div>
+          <strong style="font-size:14px">Late-Period Expenses</strong>
+          <span class="text-muted" style="font-size:12px;margin-left:8px">Last 4 months of period — use to estimate in-transit stock at year end</span>
+        </div>
+        <span id="lateExpTotal" style="font-size:13px;font-weight:600;color:var(--teal)"></span>
+      </div>
+      <table class="data-table" style="font-size:13px">
+        <thead><tr><th>Date</th><th>Description</th><th class="text-right">Amount</th><th>Category</th></tr></thead>
+        <tbody id="lateExpBody"><tr><td colspan="4" class="text-muted" style="text-align:center;padding:16px">Sync tax data to populate</td></tr></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- PICK LIST -->
@@ -1655,6 +1670,41 @@ function renderTaxCalc() {
   set('taxStock', closing);
   const stockChangeEl = document.getElementById('taxStockChange');
   if (stockChangeEl) stockChangeEl.textContent = fmt(closing - opening);
+
+  renderLateExpenses(start, end);
+}
+
+function renderLateExpenses(start, end) {
+  const tbody = document.getElementById('lateExpBody');
+  const totalEl = document.getElementById('lateExpTotal');
+  if (!tbody || !start || !end) return;
+
+  // Last 4 months of the period
+  const endDate = new Date(end);
+  const cutoff = new Date(endDate);
+  cutoff.setMonth(cutoff.getMonth() - 4);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  const lateExp = expenses.filter(e => e.date >= cutoffStr && e.date <= end)
+    .concat(ongoingCosts.filter(o => o.date >= cutoffStr && o.date <= end))
+    .sort((a, b) => a.date < b.date ? 1 : -1);
+
+  if (!lateExp.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-muted" style="text-align:center;padding:16px">No expenses in this window</td></tr>';
+    if (totalEl) totalEl.textContent = '';
+    return;
+  }
+
+  const total = lateExp.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+  if (totalEl) totalEl.textContent = `Total: ${fmt(total)}`;
+
+  tbody.innerHTML = lateExp.map(e => `
+    <tr>
+      <td class="nowrap">${e.date}</td>
+      <td>${e.description || e.name || '—'}</td>
+      <td class="text-right nowrap">${fmt(parseFloat(e.amount)||0)}</td>
+      <td style="color:var(--muted);font-size:12px">${e.category || ''}</td>
+    </tr>`).join('');
 }
 
 function printTaxSummary() {
