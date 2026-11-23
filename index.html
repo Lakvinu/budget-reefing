@@ -164,7 +164,7 @@
     <div class="logo">🐠</div>
     <div>
       <div class="brand-name">Budget Reefing</div>
-      <div class="brand-abn">ABN 60 834 296 941 · v1.4</div>
+      <div class="brand-abn">ABN 60 834 296 941 · v1.5</div>
     </div>
   </div>
   <nav class="nav">
@@ -376,7 +376,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
         <div>
           <strong style="font-size:14px">Late-Period Expenses</strong>
-          <span class="text-muted" style="font-size:12px;margin-left:8px">Last 4 months of period — use to estimate in-transit stock at year end</span>
+          <span class="text-muted" style="font-size:12px;margin-left:8px">Stock/Inventory expenses — last 4 months of period — use to estimate in-transit stock at year end</span>
         </div>
         <span id="lateExpTotal" style="font-size:13px;font-weight:600;color:var(--teal)"></span>
       </div>
@@ -1684,8 +1684,9 @@ function renderLateExpenses(start, end) {
   cutoff.setMonth(cutoff.getMonth() - 4);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-  const lateExp = expenses.filter(e => e.date >= cutoffStr && e.date <= end)
-    .concat(ongoingCosts.filter(o => o.date >= cutoffStr && o.date <= end))
+  const isStock = e => /stock|inventory/i.test(e.category || '');
+  const lateExp = expenses.filter(e => e.date >= cutoffStr && e.date <= end && isStock(e))
+    .concat(ongoingCosts.filter(o => o.date >= cutoffStr && o.date <= end && isStock(o)))
     .sort((a, b) => a.date < b.date ? 1 : -1);
 
   if (!lateExp.length) {
