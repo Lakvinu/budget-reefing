@@ -735,13 +735,14 @@ function updateMetrics() {
     const { qty } = stockStatus(i);
     return s + avgCost(i) * qty;
   }, 0);
-  document.getElementById('mInvVal').textContent = fmt(invVal);
-  document.getElementById('mSKUs').textContent = inventory.length;
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setEl('mInvVal', fmt(invVal));
+  setEl('mSKUs', inventory.length);
   updateTaxInvBtn();
   const expTotal = expenses.reduce((s, e) => s + (parseFloat(e.amount) || 0), 0)
                   + ongoingCosts.reduce((s, o) => s + (parseFloat(o.amount) || 0), 0);
-  document.getElementById('mExpTotal').textContent = fmt(expTotal);
-  document.getElementById('mSalesTotal').textContent = allTimeSales != null ? fmt(allTimeSales) : 'Sync to load';
+  setEl('mExpTotal', fmt(expTotal));
+  setEl('mSalesTotal', allTimeSales != null ? fmt(allTimeSales) : 'Sync to load');
 }
 
 function updateCatFilters() {
@@ -1531,8 +1532,6 @@ async function syncTaxData() {
     // Store inventory cost data
     if (!invRes.error) {
       taxCache.inventoryCost = invRes;
-      const totalCostVal = invRes.total_stock_value || 0;
-      document.getElementById('taxCurrentInv').textContent = totalCostVal.toFixed(2);
     }
 
     statusEl.textContent = `Last synced: ${new Date().toLocaleTimeString()}`;
